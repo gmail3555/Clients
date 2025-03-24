@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Soil Classification System</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+<style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Orbitron', sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .intro {
+      text-align: center;
+      margin-top: 50px;
+      animation: fadeInScale 1.5s ease;
+    }
+
+    @keyframes fadeInScale {
+      0% { opacity: 0; transform: scale(0.8); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+      background: linear-gradient(90deg, #00c6ff, #0072ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    form {
+      background-color: rgba(255, 255, 255, 0.1);
+      border-radius: 15px;
+      padding: 20px;
+      margin: 20px auto;
+      width: 100%;
+      max-width: 600px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    label {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 1rem;
+    }
+
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+
+    .btn-group {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+
+    button {
+      background-color: #00c6ff;
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      font-size: 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: background 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #0072ff;
+    }
+
+    .popup {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: rgba(0, 0, 0, 0.9);
+      color: #00ffcc;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 4px 20px rgba(0, 255, 204, 0.5);
+      display: none;
+      z-index: 1000;
+      text-align: center;
+      max-width: 90%;
+    }
+
+    .popup button {
+      margin-top: 15px;
+      background-color: #00ffcc;
+      color: #000;
+    }
+
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 1.8rem;
+      }
+
+      form {
+        padding: 15px;
+      }
+    }
+</style>
+
+</head>
+<body>
+  <div class="intro">
+    <h1>AI-Powered Soil Classification</h1>
+    <p>Enter sample details and classify like a pro!</p>
+  </div>
+
+  <form id="soilForm">
+    <label>Retained on 75 Microns (%)</label>
+    <input type="number" name="has_75Microns_retained" step="0.01" required />
+
+    <label>Retained on 4.75 mm (%)</label>
+    <input type="number" name="has_4750Microns_retained" step="0.01" required />
+
+    <label>Fines Percentage (%)</label>
+    <input type="number" name="fines" step="0.01" required />
+
+    <label>Cu (Uniformity Coefficient)</label>
+    <input type="number" name="cu" step="0.01" required />
+
+    <label>Cc (Curvature Coefficient)</label>
+    <input type="number" name="cc" step="0.01" required />
+
+    <label>Liquid Limit</label>
+    <input type="number" name="liquid_limit" step="0.01" required />
+
+    <label>Plastic Limit</label>
+    <input type="number" name="plastic_limit" step="0.01" required />
+
+    <label>Soil Color (e.g., Dark)</label>
+    <input type="text" name="color" required />
+
+    <div class="btn-group">
+      <button type="button" onclick="classifySoil()">Classify Soil</button>
+      <button type="button" onclick="addSampleForm()">Add Sample</button>
+    </div>
+  </form>
+
+  <div class="popup" id="resultPopup">
+    <h2>Classification Result</h2>
+    <p id="classificationResult"></p>
+    <p id="piResult"></p>
+    <p id="alineResult"></p>
+    <button onclick="closePopup()">Close</button>
+  </div>
+
+  <script >
+function classifySoil() {
+  const form = document.getElementById('soilForm');
+  const data = new FormData(form);
+
+  fetch('/classify', {
+    method: 'POST',
+    body: data
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    return response.json();
+  })
+  .then(result => {
+    document.getElementById('classificationResult').innerText = result.classification;
+    document.getElementById('piResult').innerText = `Plasticity Index (PI): ${result.pi}`;
+    document.getElementById('alineResult').innerText = `A-Line Value: ${result.aline}`;
+    document.getElementById('resultPopup').style.display = 'block';
+  })
+  .catch(error => {
+    alert('Error classifying soil: ' + error.message);
+    console.error('Error:', error);
+  });
+}
+
+function addSampleForm() {
+  const form = document.getElementById('soilForm');
+  const formClone = form.cloneNode(true);
+
+  // Prevent duplicate IDs
+  formClone.id = ''; // Clear the cloned form's ID
+
+  // Optional: Reset input values
+  formClone.querySelectorAll('input').forEach(input => input.value = '');
+
+  document.body.appendChild(formClone);
+}
+
+function closePopup() {
+  document.getElementById('resultPopup').style.display = 'none';
+}
+
+</script>
+</body>
+</html>
