@@ -5,7 +5,12 @@ import os
 app = Flask(__name__)
 
 # Load ontology
-ontology = get_ontology("SoilClassification.owl").load()
+ONTOLOGY_PATH = "SoilClassification.owl"
+try:
+    ontology = get_ontology(ONTOLOGY_PATH).load()
+    print("Ontology loaded successfully.")
+except Exception as e:
+    print(f"Error loading ontology: {e}")
 
 @app.route('/')
 def index():
@@ -23,60 +28,48 @@ def serve_css():
 def classify_soil():
     try:
         data = request.form  # 🔥 FIXED: Compatible with FormData
-        print("Received Data:", data)  # Debug log (optional)
+        print("Received Data:", data)  # Debugging log
 
         # Parse data from form
-        has_75Microns_retained = float(data['has_75Microns_retained'])
-        has_4750Microns_retained = float(data['has_4750Microns_retained'])
-        fines = float(data['fines'])
-        cu = float(data['cu'])
-        cc = float(data['cc'])
-        liquid_limit = float(data['liquid_limit'])
-        plastic_limit = float(data['plastic_limit'])
-        color = data['color']
+        has_75Microns_retained = float(data.get('has_75Microns_retained', 0))
+        has_4750Microns_retained = float(data.get('has_4750Microns_retained', 0))
+        fines = float(data.get('fines', 0))
+        cu = float(data.get('cu', 0))
+        cc = float(data.get('cc', 0))
+        liquid_limit = float(data.get('liquid_limit', 0))
+        plastic_limit = float(data.get('plastic_limit', 0))
+        color = data.get('color', '').strip().lower()
 
         # Calculations
-        plasticity_index = liquid_limit - plastic_limit
+        plasticity_index = max(0, liquid_limit - plastic_limit)  # Prevent negative values
         A_Line = 0.73 * (liquid_limit - 20)
 
         # Classification Logic
-        if color.lower() == "dark":
+        if color == "dark":
             result = "Highly Organic Soil (PK)"
         elif has_75Microns_retained > 50:
             if has_4750Microns_retained > 50:
                 if fines < 5:
-                    if cu > 4 and 1 <= cc <= 3:
-                        result = "Coarse-Grained Soil → Well-Graded Gravel"
-                    else:
-                        result = "Coarse-Grained Soil → Poorly-Graded Gravel"
+                    result = "Well-Graded Gravel" if (cu > 4 and 1 <= cc <= 3) else "Poorly-Graded Gravel"
                 elif fines > 12:
                     if plasticity_index < 4:
-                        result = "Coarse-Grained Soil → Silty Gravel"
+                        result = "Silty Gravel"
                     elif plasticity_index > 7:
-                        result = "Coarse-Grained Soil → Clayey Gravel"
+                        result = "Clayey Gravel"
                     else:
-                        result = "Coarse-Grained Soil → Silty-Clayey Gravel (Dual Symbol)"
+                        result = "Silty-Clayey Gravel (Dual Symbol)"
                 else:
-                    result = "Coarse-Grained Soil → Gravel with Fines (Dual Symbol)"
+                    result = "Gravel with Fines (Dual Symbol)"
             else:
                 if fines < 5:
-                    if cu > 6 and 1 <= cc <= 3:
-                        result = "Coarse-Grained Soil → Well-Graded Sand"
-                    else:
-                        result = "Coarse-Grained Soil → Poorly-Graded Sand"
+                    result = "Well-Graded Sand" if (cu > 6 and 1 <= cc <= 3) else "Poorly-Graded Sand"
                 elif fines > 12:
-                    if plasticity_index < A_Line:
-                        result = "Coarse-Grained Soil → Silty Sand"
-                    else:
-                        result = "Coarse-Grained Soil → Clayey Sand"
+                    result = "Silty Sand" if plasticity_index < A_Line else "Clayey Sand"
                 else:
-                    result = "Coarse-Grained Soil → Sand with Fines (Dual Symbol)"
+                    result = "Sand with Fines (Dual Symbol)"
         elif has_75Microns_retained <= 50 and has_4750Microns_retained == 0:
             if fines > 50:
-                if plasticity_index > A_Line:
-                    fine_soil_type = "Clay"
-                else:
-                    fine_soil_type = "Silt"
+                fine_soil_type = "Clay" if plasticity_index > A_Line else "Silt"
 
                 if liquid_limit < 35:
                     compressibility = "Low Compressible Soil"
@@ -85,13 +78,9 @@ def classify_soil():
                 else:
                     compressibility = "High Compressible Soil"
 
-                if liquid_limit > plastic_limit and liquid_limit != 0:
-                    consistency_index = (liquid_limit - plastic_limit) / liquid_limit
-                else:
-                    consistency_index = 0
+                consistency_index = max(0, (liquid_limit - plastic_limit) / liquid_limit) if liquid_limit > 0 else 0
 
-                result = (f"Fine-Grained Soil → {fine_soil_type} → {compressibility} "
-                          f"→ Consistency Index: {round(consistency_index, 2)}")
+                result = f"Fine-Grained Soil → {fine_soil_type} → {compressibility} → Consistency Index: {round(consistency_index, 2)}"
             else:
                 result = "Unknown Fine-Grained Soil Type"
         else:
@@ -108,4 +97,5 @@ def classify_soil():
         return jsonify({'error': 'Server Error: Unable to classify soil.'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))  # Auto-detect port for hosting
+    app.run(host="0.0.0.0", port=port, debug=True)
